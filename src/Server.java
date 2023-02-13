@@ -7,71 +7,43 @@ import static utils.ServerMessages.*;
 
 public class Server {
 
-    private int clientId;
+    private ServerSocket serverSocket;
 
-    public static void main(String[] args) {
-        int port = 8082;
-
-        if (args.length > 0) {
-            port = Integer.parseInt(args[0]);
-        }
-
-        Server server = new Server();
-        server.start(port);
+    public Server(ServerSocket serverSocket) {
+        this.serverSocket = serverSocket;
     }
 
-    public void start(int port) {
-        try {
-            System.out.printf(BINDING, port);
-            ServerSocket serverSocket = new ServerSocket(port);
-            System.out.printf(SERVER_STARTED, serverSocket);
+    public static void main(String[] args) throws IOException {
+        ServerSocket serverSocket = new ServerSocket(8083);
+        Server server = new Server(serverSocket);
+        server.startServer();
+    }
 
-            BufferedReader inFromSocket;
-            PrintWriter out;
-            BufferedReader inFromConsole;
+    public void startServer(){
 
-            while (true) {
-                Socket clientSocket = serverSocket.accept();
-                System.out.printf(CLIENT_ACCEPTED, ++clientId, clientSocket);
-                ClientHandler clientHandler = new ClientHandler(clientSocket);
+        try{
+            while(!serverSocket.isClosed()){
+
+                Socket socket = serverSocket.accept();
+                System.out.println("New client connected");
+                ClientHandler clientHandler = new ClientHandler(socket);
 
                 Thread thread = new Thread(clientHandler);
                 thread.start();
-                inFromSocket = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-                inFromConsole = new BufferedReader(new InputStreamReader(System.in));
-                out = new PrintWriter(clientSocket.getOutputStream(), true);
-                while (!clientSocket.isClosed()) {
-                    String line;
-                    if ((line = readAndCheckConnection(inFromSocket, clientSocket)) == null) {
-                        break;
-                    }
-                    System.out.printf(CLIENT_MESSAGE, clientId, line);
-                    out.println(readAndCheckConnection(inFromConsole, clientSocket));
+            }
+        }catch (IOException ioe){
 
-                }
+        }
+    }
+
+    public void closeServerSocket(){
+        try{
+            if(serverSocket != null){
+                serverSocket.close();
             }
 
         } catch (IOException e) {
-            System.out.printf(PORT_ERROR, port);
+            throw new RuntimeException(e);
         }
-
     }
-
-    private String readAndCheckConnection(BufferedReader in, Socket clientSocket) throws IOException {
-        String line = null;
-        try {
-            line = in.readLine();
-            if (line == null) {
-                System.out.printf(CLOSED_CONNECTION, clientId);
-                clientSocket.close();
-            }
-        } catch (SocketException e) {
-            System.out.printf(CLOSED_CONNECTION, clientId);
-            clientSocket.close();
-        }
-
-        return line;
-    }
-
-
 }

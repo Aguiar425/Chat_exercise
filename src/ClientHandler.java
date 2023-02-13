@@ -18,6 +18,7 @@ public class ClientHandler implements Runnable {
             this.username = br.readLine();
 
             clientHandlers.add(this);
+            sendToAll("SERVER: " + username + " has entered the room");
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

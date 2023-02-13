@@ -1,91 +1,74 @@
 import java.io.*;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.Scanner;
 
 import static utils.ClientMessages.*;
 
 public class Client{
 
     private Socket socket;
+    private BufferedReader br;
+    private BufferedWriter bw;
     private String username;
 
-    public static void main(String[] args) {
+    public Client(Socket socket, String username) {
+        try{
+            this.socket = socket;
+            this.br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            this.bw = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+            this.username = username;
 
-        if (args.length != 2) {
-            System.err.println(USAGE);
-            System.exit(1);
-        }
-
-        try {
-            System.out.println(CONNECTION_ATTEMPT);
-            Client client = new Client(args[0], Integer.parseInt(args[1]));
-            client.start();
-
-        } catch (NumberFormatException ex) {
-            System.out.printf(PORT_ERROR, args[1]);
-            System.exit(1);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
-    public Client(String hostName, int serverPort) {
+    public static void main(String[] args) throws IOException {
+        Scanner input = new Scanner(System.in);
+        System.out.println("Enter your username: ");
+        String username = input.nextLine();
 
-        try {
-            socket = new Socket(hostName, serverPort);
-            System.out.printf(CONNECTION_ESTABLISHED, socket);
-        } catch (UnknownHostException ex) {
-            System.out.printf(HOST_ERROR, ex.getMessage());
-            System.exit(1);
-        } catch (IOException ex) {
-            System.out.println(ex.getMessage());
-            System.exit(1);
+        Socket socket = new Socket("localhost", 8083);
+        Client client = new Client(socket, username);
+
+        client.checkMessage();
+        client.sendMessage();
+    }
+
+    public void sendMessage(){
+        try{
+            bw.write(username);
+            bw.newLine();
+            bw.flush();
+
+            Scanner input = new Scanner(System.in);
+            while (socket.isConnected()){
+                String message = input.nextLine();
+                bw.write(username + ": " + message);
+                bw.newLine();
+                bw.flush();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
-    private void start() {
+    public void checkMessage(){
+        new Thread((new Runnable() {
+            @Override
+            public void run() {
+                String messageFromChat;
 
-        try {
-
-            BufferedWriter bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(System.in));
-            BufferedReader sockIn = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-
-
-            while (!socket.isClosed()) {
-
-                String consoleMessage;
-                try {
-                    consoleMessage = bufferedReader.readLine();
-                } catch (IOException ex) {
-                    System.out.printf(CONSOLE_ERROR, ex.getMessage());
-                    break;
+                while (socket.isConnected()){
+                    try{
+                        messageFromChat = br.readLine();
+                        System.out.println(messageFromChat);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
-
-                if (consoleMessage == null || consoleMessage.equalsIgnoreCase(QUIT_MESSAGE)) {
-                    socket.close();
-                    break;
-                }
-
-                bufferedWriter.write(consoleMessage);
-                bufferedWriter.newLine();
-                bufferedWriter.flush();
-
-                bufferedWriter.write(username +": " + consoleMessage);
-                //System.out.printf(MESSAGE_SERVER_SENT, sockIn.readLine());
-
             }
-
-            try {
-
-                bufferedReader.close();
-                bufferedWriter.close();
-                socket.close();
-
-            } catch (IOException ex) {
-                System.out.printf(CONNECTION_CLOSING_ERROR, ex.getMessage());
-            }
-
-        } catch (IOException ex) {
-            System.out.printf(MESSAGE_SENDIND_ERROR, ex.getMessage());
-        }
+        })).start();
     }
 }
